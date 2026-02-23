@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Ramazan Sabrı</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    width:100%; height:100%; background:#050510;
+    overflow:hidden; font-family:'Georgia',serif;
+    user-select:none; -webkit-user-select:none; touch-action:none;
+    /* PNG kenarlarının cam gibi net olması için */
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+  #gameCanvas { display:block; position:absolute; top:0; left:0; width:100%; height:100%; }
+
+  /* HUD - Üst Gösterge Paneli */
+  #hud {
+    position:fixed; top:0; left:0; width:100%;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    padding:10px 18px 6px;
+    background:linear-gradient(to bottom,rgba(0,0,0,.65),transparent);
+    pointer-events:none; z-index:20;
+  }
+  .hb { display:flex; flex-direction:column; gap:4px; }
+  .hl { font-size:10px; letter-spacing:1.5px; color:rgba(255,210,100,.8); text-transform:uppercase; }
+  #patienceTrack { width:150px; height:13px; background:rgba(255,255,255,.1); border-radius:7px; border:1px solid rgba(255,200,80,.25); overflow:hidden; }
+  #patienceFill { height:100%; background:linear-gradient(90deg,#f59e0b,#fde68a); border-radius:7px; transition:width .3s ease, background .3s; }
+  #timerWrap { text-align:center; }
+  #timerSub { font-size:10px; color:rgba(160,210,255,.7); letter-spacing:2px; }
+  #timer { font-size:30px; color:#fff; text-shadow:0 0 18px rgba(120,190,255,.9); letter-spacing:2px; line-height:1; }
+  #scoreWrap { align-items:flex-end; }
+  #score { font-size:26px; color:#fde68a; text-shadow:0 0 14px rgba(251,191,36,.9); line-height:1; }
+  
+  /* Nefis/Zemin Tehlike Bölgesi */
+  #groundWarning { position:fixed; bottom:0; left:0; width:100%; height:100px; background:linear-gradient(to top, rgba(255,0,0,0.25), transparent); pointer-events:none; z-index:15; opacity:0; transition:opacity 0.3s; }
+
+  .pulse { animation:pulse .35s ease; }
+  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.38)} }
+
+  /* Uçan Puan Metinleri */
+  #floats { position:fixed; inset:0; pointer-events:none; z-index:30; overflow:hidden; }
+  .ft { position:absolute; font-size:17px; font-weight:700; pointer-events:none; animation:ftUp 1.1s ease-out forwards; }
+  @keyframes ftUp { from{opacity:1;transform:translateY(0) scale(1)} to{opacity:0;transform:translateY(-65px) scale(1.25)} }
+
+  /* Hasar Efekti */
+  #redFlash { position:fixed; inset:0; background:rgba(220,0,0,.2); pointer-events:none; z-index:40; opacity:0; transition:opacity .15s; }
+
+  /* Zorluk Barı */
+  #speedBar { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); display:none; align-items:center; gap:8px; pointer-events:none; z-index:20; }
+  #speedLbl { font-size:10px; color:rgba(255,200,80,.5); letter-spacing:1.5px; }
+  #speedTrack { width:90px; height:5px; background:rgba(255,255,255,.08); border-radius:3px; overflow:hidden; }
+  #speedFill { height:100%; background:linear-gradient(90deg,#10b981,#f59e0b,#ef4444); border-radius:3px; transition:width .5s; }
+
+  /* Touch Hint */
+  #touchHint { position:fixed; bottom:48px; left:50%; transform:translateX(-50%); font-size:11px; color:rgba(200,220,255,.4); letter-spacing:1.5px; pointer-events:none; z-index:20; white-space:nowrap; display:none; animation:blink 2s ease infinite; }
+  @keyframes blink { 0%,100%{opacity:.4} 50%{opacity:.9} }
+
+  /* Mute Butonu (SAĞ ALT KÖŞEYE ALINDI VE BÜYÜTÜLDÜ) */
+  #muteBtn { position:fixed; bottom:25px; right:25px; z-index:50; background:rgba(0,0,0,0.6); border:1px solid rgba(255,200,80,0.5); color:#fde68a; border-radius:50%; width:44px; height:44px; font-size:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+
+  /* Giriş ve Bitiş Ekranı */
+  #overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.85); backdrop-filter:blur(10px); z-index:100; }
+  #overlayBox { background:linear-gradient(140deg,rgba(12,20,55,.97),rgba(4,8,28,.99)); border:1px solid rgba(255,200,80,.3); border-radius:22px; padding:36px 44px; text-align:center; max-width:450px; width:88%; max-height:90vh; display:flex; flex-direction:column; align-items:center; box-shadow:0 0 70px rgba(245,180,30,.12), inset 0 1px 0 rgba(255,255,255,.08); }
+  
+  #overlayHeader { flex-shrink:0; width:100%; }
+  #overlayIcon { font-size:54px; display:block; margin-bottom:8px; }
+  #overlayTitle { font-size:25px; color:#fde68a; margin-bottom:10px; line-height:1.35; }
+  #overlaySub { font-size:13px; color:rgba(190,215,255,.75); line-height:1.65; margin-bottom:22px; }
+  
+  #overlayStats { display:none; justify-content:space-around; width:100%; margin-bottom:20px; padding:15px; background:rgba(255,255,255,.04); border-radius:12px; border:1px solid rgba(255,200,80,.1); flex-shrink:0; }
+  .si .sn { font-size:23px; color:#fbbf24; }
+  .si .sl { font-size:10px; color:rgba(180,205,255,.55); letter-spacing:1px; margin-top:3px; }
+  
+  /* SÜRGÜLÜ BİLGİLENDİRME KUTULARI */
+  #scrollableContent { width:100%; overflow-y:auto; flex-grow:1; margin-bottom:15px; padding-right:5px; }
+  #scrollableContent::-webkit-scrollbar { width: 6px; }
+  #scrollableContent::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius:4px; }
+  #scrollableContent::-webkit-scrollbar-thumb { background: rgba(255,200,80,0.5); border-radius:4px; }
+  
+  #imgHint { background:rgba(255,255,255,0.05); padding:15px; border-radius:10px; border:1px solid rgba(255,200,80,0.2); font-size:11px; color:rgba(180,205,255,.8); margin-top:0; line-height:1.7; text-align:left; }
+  #imgHint span { color:rgba(255,200,80,.9); font-weight:bold; }
+  
+  #finalMessage { display:none; background:rgba(251,191,36,0.1); border-left:4px solid #fbbf24; padding:18px; margin-top:0; text-align:left; border-radius:0 8px 8px 0; }
+  #fmTitle { font-size:14px; color:#fbbf24; margin-bottom:6px; text-transform:uppercase; letter-spacing:1px; font-weight:bold; }
+  #fmText { font-size:13px; color:rgba(255,255,255,0.9); line-height:1.6; font-style:italic; }
+
+  #btnContainer { flex-shrink:0; width:100%; }
+  .btn { background:linear-gradient(135deg,#b45309,#f59e0b); color:#fff; border:none; padding:13px 36px; border-radius:50px; font-size:15px; cursor:pointer; font-family:'Georgia',serif; letter-spacing:1px; box-shadow:0 4px 22px rgba(245,158,11,.4); transition:all .2s; pointer-events:all; display:inline-block; }
+  .btn:hover { transform:translateY(-2px); box-shadow:0 6px 28px rgba(245,158,11,.6); }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="groundWarning"></div>
+
+<div id="hud">
+  <div class="hb">
+    <div class="hl">🤲 Sabır</div>
+    <div id="patienceTrack"><div id="patienceFill"></div></div>
+  </div>
+  <div class="hb" id="timerWrap">
+    <div id="timerSub">☾ SAHUR VAKTİ</div>
+    <div id="timer">3:00</div>
+  </div>
+  <div class="hb" id="scoreWrap">
+    <div class="hl">✨ Sevap</div>
+    <div id="score">0</div>
+  </div>
+</div>
+
+<button id="muteBtn" onclick="toggleMute()">🔊</button>
+
+<div id="floats"></div>
+<div id="redFlash"></div>
+<div id="touchHint">☝️ Basılı tut → Yüksel &nbsp;|&nbsp; Bırak → Alçal</div>
+<div id="speedBar">
+  <div id="speedLbl">ZORLUK</div>
+  <div id="speedTrack"><div id="speedFill" style="width:0%"></div></div>
+</div>
+
+<div id="overlay">
+  <div id="overlayBox">
+    <div id="overlayHeader">
+      <span id="overlayIcon">☾</span>
+      <div id="overlayTitle">Ramazan Sabrı</div>
+      <div id="overlaySub">Sahurdan İftara bir sabır yolculuğu.<br>Gündüzün sıcağından ve nefsin tuzaklarından kaç!<br>İftar ezanına kadar dayanabilecek misin?</div>
+    </div>
+    
+    <div id="overlayStats">
+      <div class="si"><div class="sn" id="stScore">0</div><div class="sl">SEVAP</div></div>
+      <div class="si"><div class="sn" id="stCol">0</div><div class="sl">TOPLANAN</div></div>
+      <div class="si"><div class="sn" id="stAvo">0</div><div class="sl">KAÇINILAN</div></div>
+    </div>
+    
+    <div id="scrollableContent">
+      <div id="finalMessage">
+        <h4 id="fmTitle">Günün Hadis-i Şerifi</h4>
+        <p id="fmText"></p>
+      </div>
+      
+      <div id="imgHint">
+        <b style="color:#fbbf24; font-size:13px;">Oyun Rehberi ve Kurallar:</b><br><br>
+        <b>✅ Sevap Nesneleri (Topla):</b><br>
+        Kuran, Tesbih, Dua, İyilik, Sabır, Yıldız, Ay, Kalp, Hurma, Parça<br><br>
+        <b>❌ Orucu Bozanlar (Kaçın):</b><br>
+        Lahmacun, Pide, Kebap, Baklava, Hamburger, Pizza, Su, Bira, Sigara, Çikolata, Patates, Küfür, Lokum, İçecek<br><br>
+        <b>⚠️ Nefis Yanılsaması (Halüsinasyon):</b><br>
+        Eğer ekranda beliren özel <span>Nefis (👹)</span> emojisine çarparsan, <span>5 saniye boyunca</span> kafan karışır! Sevap nesneleri sana geçici olarak günah gibi görünür ve yanıp söner. Bu sürede doğru olanı seçmek için çok dikkatli olmalısın.<br><br>
+        <b>🔥 Seri Sistemi (Combo):</b><br>
+        Hiçbir kötü şeye çarpmadan üst üste 3 sevap toplarsan ekstra bonus puanlar başlar!<br><br>
+        <i>
+      </div>
+    </div>
+
+    <div id="btnContainer">
+      <button class="btn" id="startBtn" onclick="startGame()">Bismillah — Başla 🌙</button>
+      <button class="btn" id="restartBtn" onclick="startGame()" style="display:none">Tekrar Oyna 🔄</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+//  CANVAS & RESOURCES
+// ══════════════════════════════════════════════════════
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = true;
+ctx.imageSmoothingQuality = 'high';
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', () => { 
+  resize(); 
+  initStars(); 
+  initClouds();
+});
+resize();
+
+const IMGS = {};
+function loadImg(key, src) {
+  const img = new Image();
+  img.onload = () => { 
+    IMGS[key] = img; 
+  };
+  img.onerror = () => { 
+    IMGS[key] = null; 
+  };
+  img.src = src;
+}
+
+// RESİMLER
+loadImg('player', 'ramazan.png');
+loadImg('davulcu', 'davulcu.png');
+loadImg('kuran', 'kuran.png');
+loadImg('tesbih', 'tesbih.png');
+loadImg('dua', 'dua.png');
+loadImg('iyilik', 'iyilik.png');
+loadImg('sabir', 'sabir.png');
+loadImg('yildiz', 'yildiz.png');
+loadImg('ay', 'ay.png');
+loadImg('kalp', 'kalp.png');
+loadImg('hurma', 'hurma.png');
+loadImg('parca', 'parca.png');
+loadImg('lahmacun', 'lahmacun.png');
+loadImg('pide', 'pide.png');
+loadImg('kebap', 'kebap.png');
+loadImg('baklava', 'baklava.png');
+loadImg('hamburger', 'hamburger.png');
+loadImg('pizza', 'pizza.png');
+loadImg('su', 'su.png');
+loadImg('bira', 'bira.png');
+loadImg('sigara', 'sigara.png');
+loadImg('cikolata', 'cikolata.png');
+loadImg('patates', 'patates.png');
+loadImg('kufur', 'kufur.png');
+loadImg('lokum', 'lokum.png');
+loadImg('icecek', 'icecek.png');
+
+const GOOD_DEFS = [
+  { key:'kuran', emoji:'📖' }, { key:'tesbih', emoji:'📿' }, { key:'dua', emoji:'🤲' },
+  { key:'iyilik', emoji:'💚' }, { key:'sabir', emoji:'⭐' }, { key:'yildiz', emoji:'✨' },
+  { key:'ay', emoji:'🌙' }, { key:'kalp', emoji:'❤️' }, { key:'hurma', emoji:'🌴' }, { key:'parca', emoji:'🌟' }
+];
+
+// DİKKAT: Nefis (👹) eklendi ve 'isNefis: true' olarak işaretlendi.
+const BAD_DEFS = [
+  { key:'lahmacun', emoji:'🌯' }, { key:'pide', emoji:'🍞' }, { key:'kebap', emoji:'🍢' }, { key:'baklava', emoji:'🍯' },
+  { key:'hamburger', emoji:'🍔' }, { key:'pizza', emoji:'🍕' }, { key:'su', emoji:'💧' },
+  { key:'bira', emoji:'🍺' }, { key:'sigara', emoji:'🚬' }, { key:'cikolata', emoji:'🍫' },
+  { key:'patates', emoji:'🍟' }, { key:'kufur', emoji:'🤬' }, { key:'lokum', emoji:'🍩' }, { key:'icecek', emoji:'🧃' },
+  { key:'nefis', emoji:'👹', isNefis: true } 
+];
+
+const SABIR_NOTLARI = [
+  "Oruç, sabrın yarısıdır. (Hadis-i Şerif)",
+  "Zorluk arttığında sabretmek, imanın kemalindendir.",
+  "Gündüzün harareti, akşamın ferahlığına hazırlıktır.",
+  "Sadece yemekten değil, kötü sözden de kaçınmalısın.",
+  "Hurma ile açılan iftarın bereketi başkadır."
+];
+
+// SES DOSYALARI VE KONTROL
+let AC = null;
+let ezanAudio = new Audio('ezan.mp3');
+let davulAudio = new Audio('davul.mp3'); 
+davulAudio.loop = true; // SÜREKLİ TEKRARLAMASI İÇİN
+
+let isMuted = false;
+
+function toggleMute() {
+    isMuted = !isMuted;
+    document.getElementById('muteBtn').textContent = isMuted ? "🔇" : "🔊";
+    if (isMuted) {
+        davulAudio.pause();
+    } else {
+        if (G.running) davulAudio.play().catch(e=>{});
+    }
+}
+
+function getAC() {
+  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+
+function tone(f0, f1, dur, vol=.11, type='sine') {
+  if(isMuted) return;
+  try {
+    const ac = getAC();
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.connect(g);
+    g.connect(ac.destination);
+    o.type = type;
+    o.frequency.setValueAtTime(f0 || f1, ac.currentTime);
+    if(f1 && f0 !== f1) {
+      o.frequency.exponentialRampToValueAtTime(f1, ac.currentTime + dur);
+    }
+    g.gain.setValueAtTime(vol, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + dur);
+    o.start();
+    o.stop(ac.currentTime + dur);
+  } catch(e) {}
+}
+
+const sndCollect = () => tone(440, 900, .22, .09);
+const sndHit     = () => tone(200, 70, .32, .13, 'sawtooth');
+const sndFlap    = () => tone(380, 320, .1, .04);
+
+// ══════════════════════════════════════════════════════
+//  STARS VE BULUTLAR
+// ══════════════════════════════════════════════════════
+let stars = [];
+let clouds = [];
+
+function initStars() {
+  stars = Array.from({length:130}, () => ({
+    x: Math.random() * canvas.width, 
+    y: Math.random() * canvas.height * .72,
+    r: Math.random() * 1.4 + .3, 
+    tw: Math.random() * Math.PI * 2, 
+    sp: Math.random() * .025 + .01
+  }));
+}
+
+function initClouds() {
+  clouds = [];
+  let currentX = canvas.width + 50;
+  for(let i=0; i<6; i++) {
+    clouds.push({
+      x: currentX,
+      y: 50 + Math.random() * (canvas.height * 0.3),
+      w: 120 + Math.random() * 80,
+      s: 0.3 + Math.random() * 0.5
+    });
+    currentX += 200 + Math.random() * 150;
+  }
+}
+
+initStars();
+initClouds();
+
+// ══════════════════════════════════════════════════════
+//  GAME STATE
+// ══════════════════════════════════════════════════════
+const DURATION = 180; // 3 DAKİKA
+const GRAVITY  = 0.42;
+const LIFT_ACC = 1.05;
+const MAX_VY   = 9;
+const MIN_VY   = -8;
+
+const G = {
+  running: false, 
+  elapsed: 0, 
+  score: 0, 
+  patience: 100,
+  collected: 0, 
+  avoided: 0, 
+  objects: [], 
+  particles: [],
+  lastSpawn: 0, 
+  spawnInterval: 2600, 
+  speed: 2.2, 
+  pressing: false,
+  combo: 0, 
+  hallucinationUntil: 0,
+  player: { x: 100, y: 0, w: 150, h: 150, vy: 0, hitFlash: 0 }
+};
+
+// ══════════════════════════════════════════════════════
+//  SPAWN
+// ══════════════════════════════════════════════════════
+function spawn() {
+  const t = G.elapsed / DURATION;
+  const now = performance.now();
+  
+  if (now - G.lastSpawn < G.spawnInterval * 0.45) return;
+
+  const margin = 60; 
+  
+  let objCount = 1;
+  if(t > 0.2 && Math.random() < 0.4) objCount = 2;
+  if(t > 0.5 && Math.random() < 0.3) objCount = 3;
+  
+  let usedY = []; 
+
+  for(let i=0; i<objCount; i++) {
+      const isBad = Math.random() < 0.55; 
+      const list = isBad ? BAD_DEFS : GOOD_DEFS;
+      const def = list[Math.floor(Math.random() * list.length)];
+      const fakeBadDef = BAD_DEFS[Math.floor(Math.random() * BAD_DEFS.length)];
+      
+      let newY;
+      let safe = false;
+      let attempts = 0;
+      
+      while(!safe && attempts < 10) {
+          newY = margin + Math.random() * (canvas.height - margin * 4);
+          safe = true;
+          for(let u of usedY) {
+              if(Math.abs(u - newY) < 140) { safe = false; break; }
+          }
+          attempts++;
+      }
+      
+      if(safe) {
+          usedY.push(newY);
+          const offsetX = canvas.width + 100 + (Math.random() * 200 * i);
+          
+          G.objects.push({ 
+            x: offsetX, 
+            y: newY, 
+            key: def.key, 
+            emoji: def.emoji, 
+            bad: isBad, 
+            isNefis: def.isNefis || false, // Nefis özelliğini taşı
+            w: 85, 
+            h: 85, 
+            _done: false,
+            fakeKey: fakeBadDef.key,
+            fakeEmoji: fakeBadDef.emoji
+          });
+      }
+  }
+  
+  G.lastSpawn = now;
+}
+
+// ══════════════════════════════════════════════════════
+//  GÖKYÜZÜ
+// ══════════════════════════════════════════════════════
+function skyColors(t) {
+  const mix = (A, B, f) => A.map((v, i) => Math.round(v + (B[i] - v) * f));
+  const SAHUR = { top:[10,10,35], bot:[20,20,60] };   
+  const GUN   = { top:[100,180,255], bot:[200,230,255] }; 
+  const AKSAM = { top:[255,100,50], bot:[100,40,20] };   
+  const IFTAR = { top:[15,10,30], bot:[5,5,20] };       
+
+  let top, bot, label;
+  if(t < 0.3) {
+    const f = t / 0.3;
+    top = mix(SAHUR.top, GUN.top, f); 
+    bot = mix(SAHUR.bot, GUN.bot, f);
+    label = "☾ SAHUR VAKTİ";
+  } else if(t < 0.7) {
+    const f = (t - 0.3) / 0.4;
+    top = mix(GUN.top, AKSAM.top, f); 
+    bot = mix(GUN.bot, AKSAM.bot, f);
+    label = "☼ GÜNDÜZ VAKTİ";
+  } else {
+    const f = (t - 0.7) / 0.3;
+    top = mix(AKSAM.top, IFTAR.top, f); 
+    bot = mix(AKSAM.bot, IFTAR.bot, f);
+    label = "🌅 İFTARA DOĞRU";
+  }
+  return { top: `rgb(${top[0]},${top[1]},${top[2]})`, bot: `rgb(${bot[0]},${bot[1]},${bot[2]})`, label };
+}
+
+function drawBG(t) {
+  const W = canvas.width, H = canvas.height;
+  const sc = skyColors(t);
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, sc.top); 
+  g.addColorStop(1, sc.bot);
+  ctx.fillStyle = g; 
+  ctx.fillRect(0, 0, W, H);
+
+  const sa = t < 0.2 ? 1 : (t > 0.8 ? (t - 0.8) / 0.2 : 0);
+  if(sa > 0) {
+    ctx.save(); 
+    ctx.globalAlpha = sa;
+    stars.forEach(s => { 
+      s.tw += s.sp; 
+      ctx.fillStyle = '#fff'; 
+      ctx.beginPath(); 
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); 
+      ctx.fill(); 
+    });
+    ctx.restore();
+  }
+
+  // GÜNEŞ
+  if(t > 0.15 && t < 0.85) {
+    ctx.save();
+    const sunF = (t - 0.15) / 0.7; 
+    const sunX = W * sunF;
+    const sunY = H * 0.4 - Math.sin(sunF * Math.PI) * (H * 0.3); 
+    ctx.globalAlpha = Math.sin(sunF * Math.PI); 
+    ctx.fillStyle = "#ffdb58"; 
+    ctx.shadowColor = "#fff";
+    ctx.shadowBlur = 40;
+    ctx.beginPath(); 
+    ctx.arc(sunX, sunY, 45, 0, Math.PI * 2); 
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ÇİZGİ FİLM TARZI POFUDUK BULUTLAR
+  if (t > 0.15 && t < 0.85) {
+    ctx.save();
+    let cloudAlpha = 1;
+    if (t < 0.25) cloudAlpha = (t - 0.15) * 10;
+    if (t > 0.75) cloudAlpha = (0.85 - t) * 10;
+    ctx.globalAlpha = Math.max(0, Math.min(1, cloudAlpha)) * 0.85;
+    ctx.fillStyle = "#ffffff";
+    
+    clouds.forEach(c => {
+      c.x -= c.s;
+      if (c.x < -c.w) {
+          let maxCloudX = 0;
+          clouds.forEach(cl => { if(cl.x > maxCloudX) maxCloudX = cl.x; });
+          c.x = Math.max(W + c.w, maxCloudX + 200 + Math.random() * 100);
+          c.y = 50 + Math.random() * (H * 0.3);
+      }
+      
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, c.w * 0.3, 0, Math.PI * 2); 
+      ctx.arc(c.x + c.w * 0.3, c.y - c.w * 0.15, c.w * 0.4, 0, Math.PI * 2); 
+      ctx.arc(c.x + c.w * 0.6, c.y, c.w * 0.35, 0, Math.PI * 2); 
+      ctx.rect(c.x - c.w * 0.1, c.y - c.w * 0.1, c.w * 0.8, c.w * 0.4);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  // DAVULCU GÖRSELİ VEYA EMOJİSİ
+  if (t < 0.04) { 
+      ctx.save();
+      const drumX = (t / 0.04) * W; 
+      const bounce = Math.abs(Math.sin(G.elapsed * 10)) * 15; 
+      ctx.globalAlpha = 1.0;
+      const drumImg = IMGS['davulcu'];
+      if (drumImg) {
+          ctx.drawImage(drumImg, drumX, H * 0.92 - bounce - 120, 120, 120);
+      } else {
+          ctx.font = "80px serif";
+          ctx.fillText("🚶‍♂️🥁", drumX, H * 0.92 - bounce);
+      }
+      ctx.restore();
+  }
+
+  // CAMİ EMOJİSİ
+  ctx.save();
+  ctx.globalAlpha = 0.08; 
+  ctx.font = `${Math.min(W, H) * 0.45}px serif`;
+  ctx.textAlign = "right";
+  ctx.fillText("🕌", W - 20, H * 0.88);
+  ctx.restore();
+
+  // AY
+  ctx.save();
+  if(t < 0.3) {
+    ctx.globalAlpha = 1 - (t / 0.3); 
+    ctx.fillStyle = "#fffde7"; 
+    ctx.beginPath(); 
+    ctx.arc(W * 0.8, H * 0.2, 30, 0, Math.PI * 2); 
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // ZEMİN VE ÇÖL RÜZGARI
+  ctx.save(); 
+  ctx.globalAlpha = 1.0;
+  ctx.fillStyle = "rgba(0,0,0,0.15)"; 
+  ctx.fillRect(0, H * 0.92, W, H * 0.08);
+  
+  if (t > 0.4 && t < 0.6) {
+      const windFade = Math.sin((t - 0.4) / 0.2 * Math.PI); 
+      ctx.fillStyle = `rgba(255, 150, 0, ${windFade * 0.12})`;
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = `rgba(255, 200, 100, ${windFade * 0.3})`;
+      ctx.lineWidth = 2;
+      for(let i=0; i<5; i++) {
+          const wx = ((performance.now() * 0.6) + i * 250) % W;
+          const wy = (H * 0.3) + i * 80;
+          ctx.beginPath(); 
+          ctx.moveTo(W - wx, wy); 
+          ctx.lineTo(W - wx - 120, wy); 
+          ctx.stroke();
+      }
+      ctx.globalAlpha = windFade * 0.7;
+      ctx.font = "bold 20px Georgia";
+      ctx.fillStyle = "#ffdb58";
+      ctx.textAlign = "center";
+      ctx.fillText("🔥 Sıcak Çöl Rüzgarı! Yukarı Bas!", W/2, H*0.25);
+  }
+  ctx.restore();
+  
+  return sc.label;
+}
+
+// ══════════════════════════════════════════════════════
+//  DRAW FUNCTIONS
+// ══════════════════════════════════════════════════════
+function drawPlayer() {
+  const p = G.player;
+  const tilt = Math.max(-.45, Math.min(.38, p.vy * .065));
+  ctx.save();
+  ctx.globalAlpha = 1.0; 
+  ctx.translate(p.x, p.y); 
+  ctx.rotate(tilt);
+  if (p.hitFlash > 0) { 
+    p.hitFlash--; 
+    ctx.shadowColor = '#ff2222'; 
+    ctx.shadowBlur = 20; 
+  }
+  const img = IMGS['player'];
+  if (img) { 
+    ctx.drawImage(img, -p.w / 2, -p.h / 2, p.w, p.h); 
+  } else { 
+    ctx.font = "80px serif"; 
+    ctx.textAlign = "center"; 
+    ctx.fillText("🕊️", 0, 30); 
+  }
+  ctx.restore();
+}
+
+function drawObjects() {
+  G.objects.forEach(o => {
+    if (o._done) return;
+    ctx.save();
+    ctx.globalAlpha = 1.0; 
+    ctx.shadowBlur = 0;   
+    
+    let currentKey = o.key;
+    let currentEmoji = o.emoji;
+    
+    // Halüsinasyon Kontrolü
+    if (!o.bad && G.hallucinationUntil > G.elapsed) {
+        if (Math.floor(G.elapsed * 5) % 2 === 0) {
+            currentKey = o.fakeKey;
+            currentEmoji = o.fakeEmoji;
+            ctx.shadowColor = 'rgba(255, 0, 0, 0.6)'; 
+            ctx.shadowBlur = 15;
+        }
+    }
+    
+    const img = IMGS[currentKey];
+    if (img) {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.drawImage(img, o.x - o.w / 2, o.y - o.h / 2, o.w, o.h); 
+    } else { 
+      ctx.textAlign = 'center'; 
+      ctx.textBaseline = 'middle'; 
+      ctx.font = "bold 65px serif"; 
+      ctx.fillText(currentEmoji, o.x, o.y); 
+    }
+    ctx.restore();
+  });
+}
+
+function spawnFX(x, y, col, n = 10) {
+  for(let i = 0; i < n; i++){ 
+    const a = Math.PI * 2 * i / n;
+    const s = 1.5 + Math.random() * 2; 
+    G.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r: 3 + Math.random() * 4, life: 1, col }); 
+  }
+}
+
+function drawParticles() {
+  G.particles.forEach(p => { 
+    ctx.save(); 
+    ctx.globalAlpha = p.life; 
+    ctx.fillStyle = p.col; 
+    ctx.beginPath(); 
+    ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2); 
+    ctx.fill(); 
+    ctx.restore(); 
+  });
+}
+
+function collide() {
+  const p = G.player; 
+  const cr = p.w * 0.32;
+  G.objects.forEach(o => {
+    if (o._done) return;
+    const dx = p.x - o.x;
+    const dy = p.y - o.y;
+    if (Math.sqrt(dx * dx + dy * dy) < cr + o.w * 0.42) {
+      o._done = true;
+      if (o.bad) {
+        G.combo = 0; 
+        G.patience = Math.max(0, G.patience - 20); 
+        G.score = Math.max(0, G.score - 5); 
+        p.hitFlash = 15; 
+        
+        // SADECE NEFİS YENDİĞİNDE HALÜSİNASYON OLUR
+        if(o.isNefis) {
+            G.hallucinationUntil = G.elapsed + 5;
+        }
+        
+        const rf = document.getElementById('redFlash'); 
+        rf.style.opacity = '1'; 
+        setTimeout(() => rf.style.opacity = '0', 200); 
+        spawnFX(o.x, o.y, '#ff4444'); 
+        floatText(o.x - 20, o.y - 50, '-5 💔', '#ff6677'); 
+        sndHit();
+      } else {
+        G.combo++; 
+        let bonus = 15;
+        let cText = "";
+        if (G.combo >= 3) {
+            bonus += (G.combo - 2) * 5; 
+            cText = ` 🔥 Seri x${G.combo}`;
+        }
+        
+        G.score += bonus; 
+        G.collected++; 
+        spawnFX(o.x, o.y, '#fbbf24'); 
+        floatText(o.x - 20, o.y - 50, `+${bonus} ✨${cText}`, '#fde68a'); 
+        sndCollect(); 
+        const sc = document.getElementById('score'); 
+        sc.classList.remove('pulse'); 
+        void sc.offsetWidth; 
+        sc.classList.add('pulse');
+      }
+      updateHUD();
+    }
+  });
+}
+
+function floatText(x, y, txt, col){
+  const el = document.createElement('div'); 
+  el.className = 'ft'; 
+  el.textContent = txt; 
+  el.style.left = x + 'px'; 
+  el.style.top = y + 'px'; 
+  el.style.color = col; 
+  document.getElementById('floats').appendChild(el); 
+  setTimeout(() => el.remove(), 1200);
+}
+
+function updateHUD(){
+  const rem = Math.max(0, DURATION - G.elapsed); 
+  const m = Math.floor(rem / 60);
+  const s = Math.floor(rem % 60); 
+  document.getElementById('timer').textContent = `${m}:${s.toString().padStart(2, '0')}`; 
+  document.getElementById('score').textContent = G.score; 
+  document.getElementById('patienceFill').style.width = G.patience + '%'; 
+  const zorluk = Math.min(100, (G.elapsed / DURATION) * 100); 
+  document.getElementById('speedFill').style.width = zorluk + '%';
+}
+
+let raf = null, lastT = 0;
+
+function loop(ts){
+  if(!G.running) return;
+  const dt = Math.min((ts - lastT) / 1000, .05); 
+  lastT = ts; 
+  G.elapsed += dt; 
+  const t = G.elapsed / DURATION;
+  const W = canvas.width, H = canvas.height;
+
+  const currentLabel = drawBG(t); 
+  document.getElementById('timerSub').textContent = currentLabel;
+
+  G.speed = 2.8 + Math.pow(t, 1.4) * 15; 
+  G.spawnInterval = Math.max(450, 2600 - (t * 2200));
+  
+  if(ts - G.lastSpawn > G.spawnInterval){ 
+    spawn(); 
+  }
+
+  const p = G.player;
+  if(G.pressing) {
+    p.vy = Math.max(MIN_VY, p.vy - LIFT_ACC); 
+  } else {
+    p.vy = Math.min(MAX_VY, p.vy + GRAVITY);
+  }
+  
+  if (t > 0.4 && t < 0.6) {
+      p.vy += 0.25; 
+  }
+  
+  p.y += p.vy;
+
+  const groundLimit = canvas.height - 120;
+  if (p.y > groundLimit) { 
+    G.patience -= 0.12; 
+    document.getElementById('groundWarning').style.opacity = "1"; 
+  } else { 
+    document.getElementById('groundWarning').style.opacity = "0"; 
+  }
+
+  const marg = 50; 
+  if(p.y < marg) { p.y = marg; p.vy = 0; } 
+  if(p.y > canvas.height - marg) { p.y = canvas.height - marg; p.vy = 0; }
+  
+  drawPlayer();
+  G.objects = G.objects.filter(o => { 
+    o.x -= G.speed; 
+    return !o._done && o.x > -100; 
+  });
+  drawObjects(); 
+  collide();
+  G.particles = G.particles.filter(p => { 
+    p.x += p.vx; 
+    p.y += p.vy; 
+    p.life -= .04; 
+    return p.life > 0; 
+  });
+  drawParticles(); 
+  
+  if (G.patience < 25) {
+      ctx.save();
+      const pulse = Math.sin(ts * 0.005) * 0.2 + 0.5; 
+      const rg = ctx.createRadialGradient(W/2, H/2, H*0.3, W/2, H/2, H*0.9);
+      rg.addColorStop(0, "transparent");
+      rg.addColorStop(1, `rgba(150, 0, 0, ${pulse * 0.5})`);
+      ctx.fillStyle = rg;
+      ctx.fillRect(0, 0, W, H);
+      const rg2 = ctx.createRadialGradient(W/2, H/2, H*0.5, W/2, H/2, H);
+      rg2.addColorStop(0, "transparent");
+      rg2.addColorStop(1, `rgba(0, 0, 0, ${pulse * 0.7})`);
+      ctx.fillStyle = rg2;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+  }
+
+  updateHUD();
+
+  if(G.patience <= 0) {
+    endGame(false); 
+  } else if(G.elapsed >= DURATION) {
+    endGame(true); 
+  } else {
+    raf = requestAnimationFrame(loop);
+  }
+}
+
+function startGame(){
+  getAC(); 
+  ezanAudio.pause(); 
+  ezanAudio.currentTime = 0;
+  if(!isMuted) {
+      davulAudio.currentTime = 0;
+      davulAudio.play().catch(e=>{});
+  }
+  Object.assign(G, { 
+    running: true, 
+    elapsed: 0, 
+    score: 0, 
+    patience: 100, 
+    collected: 0, 
+    objects: [], 
+    lastSpawn: 0, 
+    speed: 2.8, 
+    pressing: false,
+    combo: 0,
+    hallucinationUntil: 0
+  });
+  G.player.x = 100; 
+  G.player.y = canvas.height / 2; 
+  G.player.vy = 0; 
+  initStars(); 
+  initClouds();
+  updateHUD();
+  
+  document.getElementById('overlay').style.display = 'none'; 
+  document.getElementById('imgHint').style.display = 'none';
+  document.getElementById('finalMessage').style.display = 'none';
+  
+  document.getElementById('speedBar').style.display = 'flex'; 
+  document.getElementById('touchHint').style.display = 'block';
+  lastT = performance.now(); 
+  raf = requestAnimationFrame(loop);
+}
+
+function endGame(won){
+  G.running = false; 
+  if(raf) cancelAnimationFrame(raf);
+  davulAudio.pause();
+  
+  if(won) { 
+    ezanAudio.play(); 
+    document.getElementById('overlayIcon').textContent = "🌅"; 
+    document.getElementById('overlayTitle').textContent = "ALLAH KABUL ETSİN!"; 
+    document.getElementById('overlaySub').textContent = "İftar vaktine ulaştın, sabrın zaferi!"; 
+  } else { 
+    document.getElementById('overlayIcon').textContent = "💔"; 
+    document.getElementById('overlayTitle').textContent = "SABIR TÜKENDİ"; 
+    document.getElementById('overlaySub').textContent = "Yarın tekrar denemek için niyet et!"; 
+  }
+  
+  document.getElementById('fmText').textContent = SABIR_NOTLARI[Math.floor(Math.random() * SABIR_NOTLARI.length)];
+  
+  document.getElementById('imgHint').style.display = 'none';
+  document.getElementById('finalMessage').style.display = 'block';
+  
+  document.getElementById('overlayStats').style.display = 'flex'; 
+  document.getElementById('stScore').textContent = G.score; 
+  document.getElementById('stCol').textContent = G.collected; 
+  document.getElementById('startBtn').style.display = 'none'; 
+  document.getElementById('restartBtn').style.display = 'inline-block'; 
+  document.getElementById('overlay').style.display = 'flex';
+}
+
+function onPress(e){ 
+  e.preventDefault(); 
+  if(!G.running) return; 
+  G.pressing = true; 
+  sndFlap(); 
+}
+function onRelease(e){ 
+  e.preventDefault(); 
+  G.pressing = false; 
+}
+canvas.addEventListener('touchstart', onPress, {passive:false}); 
+canvas.addEventListener('touchend', onRelease); 
+canvas.addEventListener('mousedown', onPress); 
+window.addEventListener('mouseup', onRelease);
+document.addEventListener('keydown', e => { 
+  if(e.code === 'Space') { 
+    e.preventDefault(); 
+    G.pressing = true; 
+  } 
+}); 
+document.addEventListener('keyup', e => { 
+  if(e.code === 'Space') G.pressing = false; 
+});
+
+drawBG(0);
+</script>
+</body>
+</html>
