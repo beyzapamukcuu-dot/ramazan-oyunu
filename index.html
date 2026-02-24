@@ -176,17 +176,11 @@ const ctx    = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = true;
 ctx.imageSmoothingQuality = 'high';
 
+let W, H;
 function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
 }
-window.addEventListener('resize', () => { 
-  resize(); 
-  initStars(); 
-  initClouds();
-  drawBG(0); 
-});
-resize();
 
 const IMGS = {};
 function loadImg(key, src) {
@@ -198,6 +192,9 @@ function loadImg(key, src) {
 
 loadImg('player', 'ramazan.png');
 loadImg('davulcu', 'davulcu.png');
+// YENİ ÖZELLİK: Eğer sehir.png yüklersen o görünür!
+loadImg('sehir', 'sehir.png'); 
+
 loadImg('kuran', 'kuran.png');
 loadImg('tesbih', 'tesbih.png');
 loadImg('dua', 'dua.png');
@@ -224,19 +221,19 @@ loadImg('lokum', 'lokum.png');
 loadImg('icecek', 'icecek.png');
 
 const GOOD_DEFS = [
-  { key:'kuran', emoji:'📖', isShield: true }, { key:'tesbih', emoji:'📿' }, { key:'dua', emoji:'🤲' },
+  { key:'kuran', emoji:'📖', isShield: true }, { key:'tesbih', emoji:'📿' }, { key:'dua', emoji:'🙏' },
   { key:'iyilik', emoji:'💚' }, { key:'sabir', emoji:'⭐' }, { key:'yildiz', emoji:'✨' },
   { key:'ay', emoji:'🌙' }, { key:'kalp', emoji:'❤️' }, { key:'hurma', emoji:'🌴', isHurma: true }, { key:'parca', emoji:'🌟' },
-  { key:'guvercin', emoji:'🕊️' }, // DÜZELTME 1: Güvercinden isShield: true kaldırıldı
+  { key:'guvercin', emoji:'🕊️' }, 
   { key:'miknatis', emoji:'🧲', isMagnet: true }, 
   { key:'kandil', emoji:'🏮', isSlowMo: true } 
 ];
 
 const BAD_DEFS = [
-  { key:'lahmacun', emoji:'🌯' }, { key:'pide', emoji:'🍞' }, { key:'kebap', emoji:'🍢' }, { key:'baklava', emoji:'🍯' },
+  { key:'lahmacun', emoji:'🌯' }, { key:'pide', emoji:'🍞' }, { key:'kebap', emoji:'🍖' }, { key:'baklava', emoji:'🍯' },
   { key:'hamburger', emoji:'🍔' }, { key:'pizza', emoji:'🍕' }, { key:'su', emoji:'💧' },
   { key:'bira', emoji:'🍺' }, { key:'sigara', emoji:'🚬', isSigara: true }, { key:'cikolata', emoji:'🍫' },
-  { key:'patates', emoji:'🍟' }, { key:'kufur', emoji:'🤬' }, { key:'lokum', emoji:'🍩' }, { key:'icecek', emoji:'🧃' },
+  { key:'patates', emoji:'🍟' }, { key:'kufur', emoji:'🤬' }, { key:'lokum', emoji:'🍩' }, { key:'icecek', emoji:'🥤' },
   { key:'nefis', emoji:'👹', isNefis: true } 
 ];
 
@@ -295,33 +292,7 @@ const sndDrum = () => {
 };
 
 // ══════════════════════════════════════════════════════
-//  STARS VE BULUTLAR
-// ══════════════════════════════════════════════════════
-let stars = []; let clouds = [];
-
-function initStars() {
-  stars = Array.from({length:130}, () => ({
-    x: Math.random() * canvas.width, y: Math.random() * canvas.height * .72,
-    r: Math.random() * 1.4 + .3, tw: Math.random() * Math.PI * 2, sp: Math.random() * .025 + .01
-  }));
-}
-
-function initClouds() {
-  clouds = [];
-  let currentX = canvas.width + 50;
-  for(let i=0; i<6; i++) {
-    clouds.push({
-      x: currentX, y: 50 + Math.random() * (canvas.height * 0.3),
-      w: 120 + Math.random() * 80, s: 0.3 + Math.random() * 0.5
-    });
-    currentX += 200 + Math.random() * 150;
-  }
-}
-
-initStars(); initClouds();
-
-// ══════════════════════════════════════════════════════
-//  GAME STATE
+//  GAME STATE & LOCAL STORAGE
 // ══════════════════════════════════════════════════════
 const GRAVITY  = 0.42;
 const LIFT_ACC = 1.05;
@@ -338,11 +309,43 @@ const G = {
   player: { x: 100, y: 0, w: 150, h: 150, vy: 0, hitFlash: 0 }
 };
 
+function saveProgress() {
+    localStorage.setItem('ramazanDay', G.day);
+    localStorage.setItem('ramazanScore', G.score);
+}
+
+function loadProgress() {
+    const savedDay = localStorage.getItem('ramazanDay');
+    const savedScore = localStorage.getItem('ramazanScore');
+    if(savedDay !== null) G.day = parseInt(savedDay);
+    if(savedScore !== null) G.score = parseInt(savedScore);
+}
+
+let stars = []; let clouds = [];
+
+function initStars() {
+  stars = Array.from({length:130}, () => ({
+    x: Math.random() * W, y: Math.random() * H * .72,
+    r: Math.random() * 1.4 + .3, tw: Math.random() * Math.PI * 2, sp: Math.random() * .025 + .01
+  }));
+}
+
+function initClouds() {
+  clouds = [];
+  let currentX = W + 50;
+  for(let i=0; i<6; i++) {
+    clouds.push({
+      x: currentX, y: 50 + Math.random() * (H * 0.3),
+      w: 120 + Math.random() * 80, s: 0.3 + Math.random() * 0.5
+    });
+    currentX += 200 + Math.random() * 150;
+  }
+}
+
 function initCityPattern() {
     G.cityPattern = [];
     for(let i=0; i<50; i++) { G.cityPattern.push(Math.floor(Math.random() * 4)); }
 }
-initCityPattern();
 
 function updateDurationByDay() {
     if (G.day <= 10) G.duration = 60; else if (G.day <= 20) G.duration = 120; else G.duration = 180;
@@ -369,7 +372,7 @@ function spawn() {
       
       let newY; let safe = false; let attempts = 0;
       while(!safe && attempts < 10) {
-          newY = margin + Math.random() * (canvas.height - margin * 4);
+          newY = margin + Math.random() * (H - margin * 4);
           safe = true;
           for(let u of usedY) { if(Math.abs(u - newY) < 140) { safe = false; break; } }
           attempts++;
@@ -377,7 +380,7 @@ function spawn() {
       
       if(safe) {
           usedY.push(newY);
-          const offsetX = canvas.width + 100 + (Math.random() * 200 * i);
+          const offsetX = W + 100 + (Math.random() * 200 * i);
           G.objects.push({ 
             x: offsetX, y: newY, key: def.key, emoji: def.emoji, 
             bad: isBad, isNefis: def.isNefis || false, isSigara: def.isSigara || false,
@@ -391,7 +394,7 @@ function spawn() {
 }
 
 // ══════════════════════════════════════════════════════
-//  GÖKYÜZÜ VE ŞEHİR SİLÜETİ
+//  GÖKYÜZÜ VE ŞEHİR SİLÜETİ (RESİM/KOD İKİLİ DESTEĞİ)
 // ══════════════════════════════════════════════════════
 function skyColors(t) {
   const mix = (A, B, f) => A.map((v, i) => Math.round(v + (B[i] - v) * f));
@@ -460,7 +463,6 @@ function drawBuildingBlock(ctx, x, baseH, w, type) {
 }
 
 function drawBG(t) {
-  const W = canvas.width, H = canvas.height;
   const sc = skyColors(t);
   const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, sc.top); g.addColorStop(1, sc.bot);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
@@ -483,31 +485,49 @@ function drawBG(t) {
     ctx.restore();
   }
 
-  // ══════════════════════════════════════════════════════
-  // DÜZELTME 2: ŞEHİR SİLÜETİ TÜM GÜNLER VE BAŞLANGIÇTA GÖRÜNÜR
-  // ══════════════════════════════════════════════════════
   ctx.save();
   ctx.globalAlpha = 1.0; 
   const timeMod = G.slowMoUntil > G.elapsed ? 0.35 : 1;
-  const buildingWidth = 160; 
   
-  if (G.running) G.bgScroll -= G.speed * 0.25 * timeMod;
-  
-  // Şehir deseni sonsuz döngüsü
-  let shift = Math.abs(G.bgScroll) % buildingWidth;
-  let startIdx = Math.floor(Math.abs(G.bgScroll) / buildingWidth);
-  
-  // Ekranın tam dışından başlatarak boşlukları engelliyoruz
-  let currentX = -shift - buildingWidth; 
-  
-  // Ekranı dolduracak kadar (artı 3 fazladan) bina çiz
-  const buildingsNeeded = Math.ceil(W / buildingWidth) + 3; 
+  // ÖNCELİK: Kullanıcı "sehir.png" yüklediyse onu çiz, yoksa kodlu şehri çiz
+  if (IMGS['sehir']) {
+      const cityImg = IMGS['sehir'];
+      const cityH = H * 0.8; 
+      const cityW = cityImg.width * (cityH / cityImg.height); 
+      
+      if (G.running) G.bgScroll -= G.speed * 0.25 * timeMod;
+      
+      let offset = G.bgScroll % cityW;
+      if (offset > 0) offset -= cityW;
+      
+      let currentX = offset - cityW;
+      const imgsNeeded = Math.ceil(W / cityW) + 2;
+      
+      for (let i = 0; i < imgsNeeded; i++) {
+          ctx.drawImage(cityImg, currentX, H - cityH, cityW, cityH);
+          currentX += cityW;
+      }
+  } else {
+      const buildingWidth = 160; 
+      const totalCityWidth = G.cityPattern.length * buildingWidth; 
+      
+      if (totalCityWidth > 0) {
+          if (G.running) G.bgScroll -= G.speed * 0.25 * timeMod;
+          G.bgScroll = G.bgScroll % totalCityWidth;
+          
+          let startX = G.bgScroll;
+          if (startX > 0) startX -= totalCityWidth;
 
-  for (let i = 0; i < buildingsNeeded; i++) { 
-       const patternIndex = (startIdx + i) % G.cityPattern.length;
-       const type = G.cityPattern[patternIndex];
-       drawBuildingBlock(ctx, currentX, H, buildingWidth, type);
-       currentX += buildingWidth;
+          for (let loop = 0; loop < 2; loop++) {
+              let currentX = startX + (loop * totalCityWidth);
+              for (let i = 0; i < G.cityPattern.length; i++) { 
+                   if (currentX + buildingWidth > -100 && currentX < W + 100) {
+                       drawBuildingBlock(ctx, currentX, H, buildingWidth, G.cityPattern[i]);
+                   }
+                   currentX += buildingWidth;
+              }
+          }
+      }
   }
   ctx.restore();
 
@@ -663,8 +683,10 @@ function loop(ts){
   document.getElementById('timerSub').textContent = drawBG(t);
 
   const timeMod = G.slowMoUntil > G.elapsed ? 0.35 : 1;
-  G.speed = ((2.8 + (G.day * 0.2)) + Math.pow(t, 1.4) * 15) * timeMod; 
-  G.spawnInterval = Math.max(450, (2600 - (G.day * 50)) - (t * 2200)) / timeMod; 
+  // HIZ EĞRİSİ DENGELENDİ
+  G.speed = ((3.0 + (G.day * 0.15)) + Math.pow(t, 1.1) * 7) * timeMod; 
+  G.spawnInterval = Math.max(550, (2600 - (G.day * 40)) - (t * 1200)) / timeMod; 
+  
   if(ts - G.lastSpawn > G.spawnInterval) spawn();
 
   const p = G.player;
@@ -673,8 +695,8 @@ function loop(ts){
   currentLift *= timeMod > 0.5 ? 1 : 0.6; currentGravity *= timeMod > 0.5 ? 1 : 0.6;
   p.vy = G.pressing ? Math.max(MIN_VY, p.vy - currentLift) : Math.min(MAX_VY, p.vy + currentGravity); p.y += p.vy;
 
-  if (p.y > canvas.height - 120) { G.patience -= 0.12 * timeMod; document.getElementById('groundWarning').style.opacity = "1"; } else { document.getElementById('groundWarning').style.opacity = "0"; }
-  if(p.y < 50) { p.y = 50; p.vy = 0; } if(p.y > canvas.height - 50) { p.y = canvas.height - 50; p.vy = 0; }
+  if (p.y > H - 120) { G.patience -= 0.12 * timeMod; document.getElementById('groundWarning').style.opacity = "1"; } else { document.getElementById('groundWarning').style.opacity = "0"; }
+  if(p.y < 50) { p.y = 50; p.vy = 0; } if(p.y > H - 50) { p.y = H - 50; p.vy = 0; }
   
   drawPlayer();
   G.objects = G.objects.filter(o => { o.x -= G.speed; return !o._done && o.x > -100; }); drawObjects(); collide();
@@ -701,7 +723,7 @@ function startGame(){
   updateDurationByDay();
   G.running = true; G.elapsed = 0; G.patience = 100; G.objects = []; G.particles = []; G.combo = 0; 
   G.shield = false; G.hallucinationUntil = 0; G.heavyUntil = 0; G.shake = 0; G.magnetUntil = 0; G.slowMoUntil = 0;
-  G.trail = []; G.bgScroll = 0; G.player.y = canvas.height / 2; G.player.vy = 0;
+  G.trail = []; G.bgScroll = 0; G.player.y = H / 2; G.player.vy = 0;
   
   document.getElementById('overlay').style.display = 'none'; document.getElementById('speedBar').style.display = 'flex'; 
   document.getElementById('touchHint').style.display = 'block'; document.getElementById('hallucinationVignette').style.opacity = '0';
@@ -712,13 +734,32 @@ function startGame(){
 
 function endGame(won){
   G.running = false; davulAudio.pause();
-  if(won) { ezanAudio.play(); document.getElementById('overlayIcon').textContent = "🌅"; document.getElementById('overlayTitle').textContent = G.day + ". GÜN TAMAMLANDI!"; document.getElementById('overlaySub').textContent = "Sabrın meyvesini aldın. Yarın daha zor olacak!"; G.day++; } 
-  else { document.getElementById('overlayIcon').textContent = "💔"; document.getElementById('overlayTitle').textContent = "SABIR TÜKENDİ"; document.getElementById('overlaySub').textContent = "Nefsine yenik düştün. 1. günden tekrar niyet et!"; G.day = 1; G.score = 0; }
+  if(won) { 
+      ezanAudio.play(); 
+      document.getElementById('overlayIcon').textContent = "🌅"; 
+      document.getElementById('overlayTitle').textContent = G.day + ". GÜN TAMAMLANDI!"; 
+      document.getElementById('overlaySub').textContent = "Sabrın meyvesini aldın. Yarın daha zor olacak!"; 
+      G.day++; 
+  } 
+  else { 
+      document.getElementById('overlayIcon').textContent = "💔"; 
+      document.getElementById('overlayTitle').textContent = "SABIR TÜKENDİ"; 
+      document.getElementById('overlaySub').textContent = "Nefsine yenik düştün. 1. günden tekrar niyet et!"; 
+      G.day = 1; 
+      G.score = 0; 
+  }
+  
+  saveProgress();
   
   document.getElementById('fmText').textContent = SABIR_NOTLARI[Math.floor(Math.random() * SABIR_NOTLARI.length)];
   document.getElementById('stScore').textContent = G.score; document.getElementById('stDay').textContent = G.day - (won ? 1 : 0); document.getElementById('stCol').textContent = G.collected;
   document.getElementById('finalMessage').style.display = 'block'; document.getElementById('overlayStats').style.display = 'flex'; 
-  document.getElementById('startBtn').style.display = 'none'; document.getElementById('restartBtn').style.display = 'inline-block'; document.getElementById('overlay').style.display = 'flex';
+  document.getElementById('startBtn').style.display = 'none'; document.getElementById('restartBtn').style.display = 'inline-block'; 
+  
+  if (G.day > 1) { document.getElementById('restartBtn').innerHTML = `Kaldığın Yerden Devam Et (Gün: ${G.day}) 🔄`; } 
+  else { document.getElementById('restartBtn').innerHTML = `Tekrar Başla 🔄`; }
+  
+  document.getElementById('overlay').style.display = 'flex';
 }
 
 function onPress(e){ e.preventDefault(); if(G.running) { G.pressing = true; sndFlap(); } }
@@ -729,11 +770,25 @@ document.addEventListener('keydown', e => { if(e.code === 'Space') { e.preventDe
 document.addEventListener('keyup', e => { if(e.code === 'Space') G.pressing = false; });
 
 // ══════════════════════════════════════════════════════
-//  DÜZELTME 3: MENÜDE BİNALARIN GÖRÜNMESİ İÇİN
+//  GÜÇLÜ BAŞLATICI - GİTHUB SAYFASI İÇİN YEDEKLEMELİ
 // ══════════════════════════════════════════════════════
-window.onload = () => {
+function initAll() {
     resize();
+    initStars();
+    initClouds();
+    initCityPattern();
     drawBG(0);
+}
+
+window.onload = () => {
+    loadProgress();
+    if (G.day > 1) { document.getElementById('startBtn').innerHTML = `Kaldığın Yerden Devam Et (Gün: ${G.day}) 🌙`; }
+    
+    initAll();
+    
+    // Tarayıcı render gecikmelerini önlemek için yedek çizim tetikleyiciler
+    setTimeout(initAll, 100);
+    setTimeout(initAll, 500);
 };
 
 </script>
